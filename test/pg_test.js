@@ -22,6 +22,13 @@ internals.interfaces = {
 internals.migrationTable = 'migrations';
 log.silence(true);
 
+function currentTimestampExpression (version) {
+  if (semver.gte(version, '10.0.0')) {
+    return 'CURRENT_TIMESTAMP';
+  }
+  return 'now()';
+}
+
 vows
   .describe('pg')
   .addBatch({
@@ -238,16 +245,26 @@ vows
           assert.strictEqual(column.isNullable(), true);
         },
 
-        'that has raw column': function (err, columns) {
-          assert.isNull(err);
-          var column = findByName(columns, 'raw');
-          assert.strictEqual(column.getDefaultValue(), 'now()');
-        },
+        'has column metadata for timestamp columns': {
+          topic: function (columns) {
+            db.determineVersion(function (err, version) {
+              this.callback(err, version, columns);
+            }.bind(this));
+          },
 
-        'that has special CURRENT_TIMESTAMP column': function (err, columns) {
-          assert.isNull(err);
-          var column = findByName(columns, 'special');
-          assert.strictEqual(column.getDefaultValue(), 'now()');
+          'that has raw column': function (err, version, columns) {
+            assert.isNull(err);
+            var column = findByName(columns, 'raw');
+            var timestampExpression = currentTimestampExpression(version);
+            assert.strictEqual(column.getDefaultValue(), timestampExpression);
+          },
+
+          'that has special CURRENT_TIMESTAMP column': function (err, version, columns) {
+            assert.isNull(err);
+            var column = findByName(columns, 'special');
+            var timestampExpression = currentTimestampExpression(version);
+            assert.strictEqual(column.getDefaultValue(), timestampExpression);
+          }
         }
       },
 
