@@ -22,13 +22,6 @@ internals.interfaces = {
 internals.migrationTable = 'migrations';
 log.silence(true);
 
-function currentTimestampExpression (version) {
-  if (semver.gte(version, '10.0.0')) {
-    return 'CURRENT_TIMESTAMP';
-  }
-  return 'now()';
-}
-
 vows
   .describe('pg')
   .addBatch({
@@ -1196,4 +1189,11 @@ function findByName (columns, name) {
     }
   }
   return null;
+}
+
+function currentTimestampExpression (version) {
+  if (semver.gte(version, '10.0.0')) {
+    return 'CURRENT_TIMESTAMP';
+  }
+  return 'now()';
 }
