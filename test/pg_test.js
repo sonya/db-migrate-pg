@@ -5,6 +5,7 @@ var dbmeta = require('db-meta');
 var dataType = require('db-migrate-shared').dataType;
 var driver = require('../');
 var log = require('db-migrate-shared').log;
+var semver = require('semver');
 
 var config = require('./db.config.json').pg;
 var db;
@@ -54,6 +55,18 @@ vows
 
       'shows connection error': function (err, _db) {
         assert.isNotNull(err);
+      }
+    }
+  })
+  .addBatch({
+    determineVersion: {
+      topic: function () {
+        db.determineVersion(this.callback);
+      },
+
+      'has valid version': function (err, version) {
+        assert.isNull(err);
+        assert.isNotNull(semver.valid(version));
       }
     }
   })

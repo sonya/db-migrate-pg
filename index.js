@@ -159,6 +159,42 @@ var PgDriver = Base.extend({
     );
   },
 
+  determineVersion: function (callback) {
+    return this.all('show server_version_num')
+      .then(
+        function (result) {
+          if (result && result.length > 0 && result[0].server_version_num) {
+            var version = result[0].server_version_num;
+            var major = Math.floor(version / 10000);
+            var minor = Math.floor((version - major * 10000) / 100);
+            var patch = Math.floor(version - major * 10000 - minor * 100);
+            version = major + '.' + minor + '.' + patch;
+          }
+          return version;
+        }
+      )
+      .catch(
+        // not all DBs support server_version_num, fall back to server_version
+        function () {
+          return this.all('show server_version').then(
+            function (result) {
+              if (result && result.length > 0 && result[0].server_version) {
+                var version = result[0].server_version;
+                // handle versions like “10.2 (Ubuntu 10.2)”
+                version = version.split(' ')[0];
+                // handle missing patch numbers
+                if (version.split('.').length !== 3) {
+                  version += '.0';
+                }
+                return version;
+              }
+            }
+          );
+        }.bind(this)
+      )
+      .nodeify(callback);
+  },
+
   createMigrationsTable: function (callback) {
     var options = {
       columns: {
@@ -174,43 +210,13 @@ var PgDriver = Base.extend({
       ifNotExists: false
     };
 
-    return this.all('show server_version_num')
+    return this.determineVersion()
       .then(
-        function (result) {
-          if (result && result.length > 0 && result[0].server_version_num) {
-            var version = result[0].server_version_num;
-            var major = Math.floor(version / 10000);
-            var minor = Math.floor((version - major * 10000) / 100);
-            var patch = Math.floor(version - major * 10000 - minor * 100);
-            version = major + '.' + minor + '.' + patch;
-            options.ifNotExists = semver.gte(version, '9.1.0');
-          }
-
+        function (version) {
+          options.ifNotExists = semver.gte(version, '9.1.0');
           // Get the current search path so we can change the current schema
           // if necessary
           return this.all('SHOW search_path');
-        }.bind(this)
-      )
-      .catch(
-        // not all DBs support server_version_num, fall back to server_version
-        function () {
-          return this.all('show server_version').then(
-            function (result) {
-              if (result && result.length > 0 && result[0].server_version) {
-                var version = result[0].server_version;
-                // handle versions like “10.2 (Ubuntu 10.2)”
-                version = version.split(' ')[0];
-                // handle missing patch numbers
-                if (version.split('.').length !== 3) {
-                  version += '.0';
-                }
-                options.ifNotExists = semver.gte(version, '9.1.0');
-                // Get the current search path so we can change the current
-                // schema if necessary
-                return this.all('SHOW search_path');
-              }
-            }.bind(this)
-          );
         }.bind(this)
       )
       .then(
@@ -275,17 +281,10 @@ var PgDriver = Base.extend({
       ifNotExists: false
     };
 
-    return this.all('select version() as version')
+    return this.determineVersion()
       .then(
-        function (result) {
-          if (result && result && result.length > 0 && result[0].version) {
-            var version = result[0].version;
-            var match = version.match(/\d+\.\d+\.\d+/);
-            if (match && match[0] && semver.gte(match[0], '9.1.0')) {
-              options.ifNotExists = true;
-            }
-          }
-
+        function (version) {
+          options.ifNotExists = semver.gte(version, '9.1.0');
           // Get the current search path so we can change the current schema
           // if necessary
           return this.all('SHOW search_path');
