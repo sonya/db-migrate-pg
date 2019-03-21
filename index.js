@@ -70,6 +70,21 @@ var PgDriver = Base.extend({
     }
   },
 
+  // the superclass doesn't really give us a chance to determine version
+  // before/within createTable, so this is just going to fail if the user
+  // tries to partition tables on older server versions :(
+  _applyTableOptions: function (options, tableName) {
+    var tableOptionClauses = [];
+    if (typeof options.partitionBy === 'string') {
+      var validExpression = /^(list|range|hash)\s*(\(.+\))?$/i;
+      if (options.partitionBy.match(validExpression) !== null) {
+        tableOptionClauses.push('PARTITION BY ' + options.partitionBy);
+      }
+    }
+
+    return tableOptionClauses.join(' ');
+  },
+
   mapDataType: function (str) {
     switch (str) {
       case 'json':
