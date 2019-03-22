@@ -4,6 +4,42 @@ var semver = require('semver');
 var Base = require('db-migrate-base');
 var Promise = require('bluebird');
 
+function getServerVersion (driver, callback) {
+  return driver.all('show server_version_num')
+    .then(
+      function (result) {
+        if (result && result.length > 0 && result[0].server_version_num) {
+          var version = result[0].server_version_num;
+          var major = Math.floor(version / 10000);
+          var minor = Math.floor((version - major * 10000) / 100);
+          var patch = Math.floor(version - major * 10000 - minor * 100);
+          version = major + '.' + minor + '.' + patch;
+        }
+        return version;
+      }
+    )
+    .catch(
+      // not all DBs support server_version_num, fall back to server_version
+      function () {
+        return driver.all('show server_version').then(
+          function (result) {
+            if (result && result.length > 0 && result[0].server_version) {
+              var version = result[0].server_version;
+              // handle versions like “10.2 (Ubuntu 10.2)”
+              version = version.split(' ')[0];
+              // handle missing patch numbers
+              if (version.split('.').length !== 3) {
+                version += '.0';
+              }
+              return version;
+            }
+          }
+        );
+      }
+    )
+    .nodeify(callback);
+}
+
 var PgDriver = Base.extend({
   init: function (connection, schema, intern) {
     this.log = intern.mod.log;
@@ -174,42 +210,6 @@ var PgDriver = Base.extend({
     );
   },
 
-  determineVersion: function (callback) {
-    return this.all('show server_version_num')
-      .then(
-        function (result) {
-          if (result && result.length > 0 && result[0].server_version_num) {
-            var version = result[0].server_version_num;
-            var major = Math.floor(version / 10000);
-            var minor = Math.floor((version - major * 10000) / 100);
-            var patch = Math.floor(version - major * 10000 - minor * 100);
-            version = major + '.' + minor + '.' + patch;
-          }
-          return version;
-        }
-      )
-      .catch(
-        // not all DBs support server_version_num, fall back to server_version
-        function () {
-          return this.all('show server_version').then(
-            function (result) {
-              if (result && result.length > 0 && result[0].server_version) {
-                var version = result[0].server_version;
-                // handle versions like “10.2 (Ubuntu 10.2)”
-                version = version.split(' ')[0];
-                // handle missing patch numbers
-                if (version.split('.').length !== 3) {
-                  version += '.0';
-                }
-                return version;
-              }
-            }
-          );
-        }.bind(this)
-      )
-      .nodeify(callback);
-  },
-
   createMigrationsTable: function (callback) {
     var options = {
       columns: {
@@ -225,7 +225,7 @@ var PgDriver = Base.extend({
       ifNotExists: false
     };
 
-    return this.determineVersion()
+    return getServerVersion(this)
       .then(
         function (version) {
           options.ifNotExists = semver.gte(version, '9.1.0');
@@ -296,7 +296,7 @@ var PgDriver = Base.extend({
       ifNotExists: false
     };
 
-    return this.determineVersion()
+    return getServerVersion(this)
       .then(
         function (version) {
           options.ifNotExists = semver.gte(version, '9.1.0');
@@ -656,6 +656,12 @@ var PgDriver = Base.extend({
     } else return Promise.resolve();
   }
 });
+
+// expose here to allow testing (this method won't be accessible when
+// running the migrator as it isn't part of MigratorInterface)
+PgDriver.prototype.getServerVersion = function (callback) {
+  getServerVersion(this, callback);
+};
 
 Promise.promisifyAll(PgDriver);
 

@@ -59,9 +59,9 @@ vows
     }
   })
   .addBatch({
-    determineVersion: {
+    getServerVersion: {
       topic: function () {
-        db.determineVersion(this.callback);
+        db.getServerVersion(this.callback);
       },
 
       'has valid version': function (err, version) {
@@ -240,7 +240,7 @@ vows
 
         'has column metadata for timestamp columns': {
           topic: function (columns) {
-            db.determineVersion(function (err, version) {
+            db.getServerVersion(function (err, version) {
               this.callback(err, version, columns);
             }.bind(this));
           },

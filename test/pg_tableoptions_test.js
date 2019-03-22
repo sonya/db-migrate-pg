@@ -51,9 +51,9 @@ vows
     }
   })
   .addBatch({
-    determineVersion: {
+    getServerVersion: {
       topic: function () {
-        db.determineVersion(this.callback);
+        db.getServerVersion(this.callback);
       },
 
       'has valid version': function (err, _version) {
